@@ -1,0 +1,10 @@
+# Gradle, Kotlin, Android, iOS, Compose Multiplatform
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+.DS_Store
+composeApp/build/
+iosApp/build/
+*.hprof
