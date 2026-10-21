@@ -8,3 +8,7 @@ local.properties
 composeApp/build/
 iosApp/build/
 *.hprof
+
+# graphify (graf pengetahuan lokal)
+graphify-out/
+.kotlin/
