@@ -1,50 +1,66 @@
 package com.pasaree.app
 
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
+import com.pasaree.app.layar.LayarBeranda
+import com.pasaree.app.layar.LayarDetailProduk
+import com.pasaree.app.layar.LayarPencarian
+import com.pasaree.app.tema.TemaPasaree
 
-sealed interface RuteBeli {
-    data object Katalog : RuteBeli
-    data object Keranjang : RuteBeli
-    data class Bayar(val pesananId: String) : RuteBeli
-    data class Lacak(val pesananId: String) : RuteBeli
-}
-
+/**
+ * Akar aplikasi beli. [produkIdTautan] berasal dari deep-link (`chefgenie://pasaree/produk/{id}`)
+ * dan hanya dipakai sebagai back-stack awal; setelahnya back-stack dipulihkan dari state tersimpan.
+ */
 @Composable
-fun BeliApp() {
-    val tumpukan = androidx.navigation3.runtime.rememberNavBackStack(RuteBeli.Katalog)
-    NavDisplay(
-        backStack = tumpukan,
-        onBack = { tumpukan.removeLastOrNull() },
-        entryProvider = { rute ->
-            when (rute) {
-                is RuteBeli.Katalog -> NavEntry(rute) { LayarKatalog(keKeranjang = { tumpukan.add(RuteBeli.Keranjang) }) }
-                is RuteBeli.Keranjang -> NavEntry(rute) { LayarKeranjang(keBayar = { id -> tumpukan.add(RuteBeli.Bayar(id)) }) }
-                is RuteBeli.Bayar -> NavEntry(rute) { LayarBayar(rute.pesananId) }
-                is RuteBeli.Lacak -> NavEntry(rute) { LayarLacak(rute.pesananId) }
+fun BeliApp(graf: GrafApp = GrafApp.bawaan, produkIdTautan: String? = null) {
+    TemaPasaree {
+        val tumpukan = rememberNavBackStack(KonfigurasiBackStack, *backStackAwal(produkIdTautan).toTypedArray())
+        var terakhirDiproses by remember { mutableStateOf(produkIdTautan) }
+        LaunchedEffect(produkIdTautan) {
+            // Tautan yang masuk saat aplikasi sudah berjalan (onNewIntent); tautan awal sudah ada di back-stack.
+            if (produkIdTautan != null && produkIdTautan != terakhirDiproses) {
+                tumpukan.add(DetailProduk(produkIdTautan))
+                terakhirDiproses = produkIdTautan
             }
         }
-    )
-}
-
-@Composable
-private fun LayarKatalog(keKeranjang: () -> Unit) {
-    Text("Katalog Pasaree — jelajah lapak dan produk")
-}
-
-@Composable
-private fun LayarKeranjang(keBayar: (String) -> Unit) {
-    Text("Keranjang — checkout multi-lapak dengan idempotency-key")
-}
-
-@Composable
-private fun LayarBayar(pesananId: String) {
-    Text("Bayar pesanan $pesananId — hanya daring, tidak pernah offline")
-}
-
-@Composable
-private fun LayarLacak(pesananId: String) {
-    Text("Lacak pesanan $pesananId — status proksi trip Lumbung")
+        NavDisplay(
+            backStack = tumpukan,
+            onBack = { tumpukan.removeLastOrNull() },
+            entryProvider = { rute: NavKey ->
+                when (rute) {
+                    is Beranda -> NavEntry(rute) {
+                        LayarBeranda(
+                            graf = graf,
+                            keCari = { tumpukan.add(Pencarian(it)) },
+                            keDetail = { tumpukan.add(DetailProduk(it)) },
+                        )
+                    }
+                    is Pencarian -> NavEntry(rute) {
+                        LayarPencarian(
+                            graf = graf,
+                            kataKunciAwal = rute.kataKunci,
+                            keDetail = { tumpukan.add(DetailProduk(it)) },
+                            kembali = { tumpukan.removeLastOrNull() },
+                        )
+                    }
+                    is DetailProduk -> NavEntry(rute) {
+                        LayarDetailProduk(
+                            graf = graf,
+                            produkId = rute.produkId,
+                            kembali = { tumpukan.removeLastOrNull() },
+                        )
+                    }
+                    else -> error("Rute tidak dikenal: $rute")
+                }
+            },
+        )
+    }
 }
